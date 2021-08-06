@@ -127,3 +127,7 @@ todo.txt
 *.pdf
 results
 *.svg
+
+
+experiments/*
+!experiments/.gitkeep
