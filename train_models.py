@@ -7,6 +7,8 @@ from meters import AverageMeter, ProgressMeter, TensorboardMeter
 from my_args import get_args
 import warnings
 
+from src.prepare_data import prepare_data
+
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -15,12 +17,13 @@ import torch.optim
 import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
+from torchsummary import summary
 
 # GPU if available (or CPU instead)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 # TODO: best accuracy metrics (used to save the best checkpoints)
-best_acc = 0.
+best_miou = 0.
 
 
 def main():
@@ -43,39 +46,13 @@ def main():
     # TODO: define model
     model = None
 
-    # TODO: define loss function
-    criterion = nn.CrossEntropyLoss().to(device)
-
-    # TODO: define optimizer
-    optimizer = torch.optim.SGD(
-        model.parameters(),
-        args.lr,
-        momentum=args.momentum,
-        weight_decay=args.weight_decay
-    )
-    
-    # TODO: define input_size here to have the right summary of your model
+    # define input_size here to have the right summary of your model
     if args.summary:
-        summary(model, input_size=(3, 224, 224))
+        summary(model, input_size=(3, 480, 640))
         exit()
 
-    # optionally resume from a checkpoint
-    if args.resume:
-        if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume)
-            args.start_epoch = checkpoint['epoch']
-            best_acc = checkpoint['best_acc'].to(device)
-            model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(args.resume, checkpoint['epoch']))
-        else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
-
-    cudnn.benchmark = True
-
     # TODO: dataloaders code
+    data_loaders = prepare_data(args, ckpt_dir)
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -104,6 +81,33 @@ def main():
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
+    # TODO: define loss function
+    criterion = nn.CrossEntropyLoss().to(device)
+
+    # TODO: define optimizer
+    optimizer = torch.optim.SGD(
+        model.parameters(),
+        args.lr,
+        momentum=args.momentum,
+        weight_decay=args.weight_decay
+    )
+
+    # optionally resume from a checkpoint
+    if args.resume:
+        if os.path.isfile(args.resume):
+            print("=> loading checkpoint '{}'".format(args.resume))
+            checkpoint = torch.load(args.resume)
+            args.start_epoch = checkpoint['epoch']
+            best_miou = checkpoint['best_miou'].to(device)
+            model.load_state_dict(checkpoint['state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(args.resume, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+
+    cudnn.benchmark = True
+
     # If only evaluating the model is required
     if args.evaluate:
         _, _, _ = one_epoch(val_loader, model, criterion,
@@ -126,14 +130,14 @@ def main():
                               epoch, args, tensorboard_meter, optimizer=None)
 
         # remember best accuracy and save checkpoint
-        is_best = acc > best_acc
-        best_acc = max(acc, best_acc)
+        is_best = acc > best_miou
+        best_miou = max(acc, best_miou)
 
         save_checkpoint({
             'epoch': epoch + 1,
             'arch': args.arch,
             'state_dict': model.state_dict(),
-            'best_acc': best_acc,
+            'best_miou': best_miou,
             'optimizer': optimizer.state_dict(),
         }, is_best, filename=f'{args.experiment}/checkpoint_{str(epoch).zfill(5)}.pth.tar')
 

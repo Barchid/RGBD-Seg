@@ -7,10 +7,8 @@ import argparse
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
+    parser = argparse.ArgumentParser(description='PyTorch Training')
 
-    parser.add_argument('data', metavar='DIR',
-                        help='path to dataset')
     parser.add_argument('-j', '--workers', default=0, type=int, metavar='N',
                         help='number of data loading workers (default: 0)')
     parser.add_argument('--epochs', default=90, type=int, metavar='N',
@@ -44,3 +42,28 @@ def get_args():
                         type=str, help="Name of the experiment.")
     parser.add_argument('--debug', action='store_true',
                         help="If used, forces to overfit only one batch of the train split (to debug the network).")
+
+    # dataset related
+    parser.add_argument('--dataset', default='nyuv2',
+                        choices=['sunrgbd',
+                                 'nyuv2',
+                                 'cityscapes', 'cityscapes-with-depth',
+                                 'scenenetrgbd'])
+    parser.add_argument('--dataset_dir',
+                        default=None,
+                        help='Path to dataset root.',)
+    parser.add_argument('--raw_depth', action='store_true', default=False,
+                        help='Whether to use the raw depth values instead of'
+                        'the refined depth values')
+    parser.add_argument('--aug_scale_min', default=1.0, type=float,
+                        help='the minimum scale for random rescaling the '
+                        'training data.')
+    parser.add_argument('--aug_scale_max', default=1.4, type=float,
+                        help='the maximum scale for random rescaling the '
+                        'training data.')
+    parser.add_argument('--height', type=int, default=480,
+                        help='height of the training images. '
+                        'Images will be resized to this height.')
+    parser.add_argument('--width', type=int, default=640,
+                        help='width of the training images. '
+                        'Images will be resized to this width.')
