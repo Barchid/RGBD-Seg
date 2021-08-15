@@ -180,7 +180,11 @@ class ArgumentParserRGBDSegmentation(argparse.ArgumentParser):
                                'training data.')
 
         # others
-        self.add_argument('-j', '--workers', default=8, type=int, metavar='N',
-                          help='number of data loading workers')
+        self.add_argument('-j', '--workers', default=0, type=int, metavar='N',
+                          help='number of data loading workers. Defaults to 0.')
         self.add_argument('--debug', default=False, action='store_true',
                           help='Only one batch in training and validation.')
+
+        # ADDED
+        self.add_argument('--seed', default=None, type=int, help="Random seed to use for training. Defaults to None.")
+        self.add_argument('--experiment', required=True, type=str, help="Name of the experiment (to save in the experiments dir")
