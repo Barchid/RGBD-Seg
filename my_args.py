@@ -19,6 +19,8 @@ def get_args():
                         metavar='N', help='mini-batch size (default: 8).')
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                         metavar='LR', help='initial learning rate (default: 0.1).', dest='lr')
+    parser.add_argument('--optimizer', type=str, default='SGD',
+                        choices=['SGD', 'Adam'])
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum')
     parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
@@ -52,6 +54,7 @@ def get_args():
     parser.add_argument('--dataset_dir',
                         default=None,
                         help='Path to dataset root.',)
+    parser.add_argument('--modality', type=str, default='rgbd', choices=['rgbd', 'rgb', 'depth'])
     parser.add_argument('--raw_depth', action='store_true', default=False,
                         help='Whether to use the raw depth values instead of'
                         'the refined depth values')
@@ -67,3 +70,9 @@ def get_args():
     parser.add_argument('--width', type=int, default=640,
                         help='width of the training images. '
                         'Images will be resized to this width.')
+    parser.add_argument('--class_weighting', type=str,
+                        default='median_frequency',
+                        choices=['median_frequency', 'logarithmic', 'None'],
+                        help='which weighting mode to use for weighting the '
+                        'classes of the unbalanced dataset'
+                        'for the loss function during training.')
