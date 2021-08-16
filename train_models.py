@@ -2,6 +2,7 @@ import argparse
 import os
 import random
 import shutil
+from src.models.model_one_modality import ESANetOneModality
 from src.confusion_matrix import ConfusionMatrixTensorflow
 from src import utils
 import time
@@ -47,14 +48,6 @@ def main():
     if not os.path.exists(os.path.join('experiments', args.experiments)):
         os.mkdir(os.path.join('experiments', args.experiments))
 
-    # TODO: define model
-    model = None
-
-    # define input_size here to have the right summary of your model
-    if args.summary:
-        summary(model, input_size=(3, 480, 640))
-        exit()
-
     # dataloaders code
     data_loaders = prepare_data(args, ckpt_dir=None)
     train_loader, val_loader = data_loaders
@@ -65,6 +58,29 @@ def main():
         class_weighting = train_loader.dataset.compute_class_weights(weight_mode=args.class_weighting, c=args.c_for_logarithmic_weighting)
     else:
         class_weighting = np.ones(n_classes_without_void)
+
+    # TODO: define model
+    model = ESANetOneModality(
+            height=args.height,
+            width=args.width,
+            pretrained_on_imagenet=True,
+            encoder='resnet18',
+            encoder_block='NonBottleneck1D',
+            activation='relu',
+            input_channels=3,
+            encoder_decoder_fusion='add',
+            context_module='ppm',
+            num_classes=n_classes_without_void,
+            pretrained_dir=None,
+            nr_decoder_blocks=None,
+            channels_decoder=None,
+            weighting_in_encoder='None',
+            upsampling='bilinear'
+        )
+    # define input_size here to have the right summary of your model
+    if args.summary:
+        summary(model, input_size=(3, 480, 640))
+        exit()
 
     # loss functions (only loss_function_train is really needed.
     # The other loss functions are just there to compare valid loss to train loss)
