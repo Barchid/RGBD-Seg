@@ -2,6 +2,7 @@ import argparse
 import os
 import random
 import shutil
+from src.confusion_matrix import ConfusionMatrixTensorflow
 from src import utils
 import time
 from meters import AverageMeter, ProgressMeter, TensorboardMeter
@@ -14,6 +15,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.parallel
+import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
@@ -76,8 +78,6 @@ def main():
         weighted_pixel_sum=pixel_sum_valid_data_weighted,
         device=device
     )
-    criterion_val_unweighted = \
-        utils.CrossEntropyLoss2dForValidDataUnweighted(device=device)
 
     # define optimizer
     optimizer = get_optimizer(args, model)
@@ -98,9 +98,15 @@ def main():
 
     cudnn.benchmark = True
 
+    # Confusion matrixes to compute the mIoU metrics (train and val)
+    confusion_matrix = ConfusionMatrixTensorflow(n_classes_without_void)
+
     # If only evaluating the model is required
     if args.evaluate:
-        _, _, _ = one_epoch(val_loader, model, criterion_val, 0, args, optimizer=None)
+        with torch.no_grad():
+            criterion_val.reset_loss()
+            confusion_matrix.reset_conf_matrix()
+            _, _, _ = one_epoch(val_loader, model, criterion_val, 0, args, confusion_matrix, optimizer=None)
         return
 
     # define tensorboard meter
@@ -111,12 +117,14 @@ def main():
         adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        miou, loss = one_epoch(train_loader, model, criterion_train,
-                               epoch, args, tensorboard_meter, optimizer=optimizer)
+        confusion_matrix.reset_conf_matrix()
+        miou, loss = one_epoch(train_loader, model, criterion_train, epoch, args, confusion_matrix, tensorboard_meter, optimizer=optimizer)
 
         # evaluate on validation set (optimizer is None when validation)
-        miou, loss = one_epoch(val_loader, model, criterion_val,
-                               epoch, args, tensorboard_meter, optimizer=None)
+        with torch.no_grad():
+            criterion_val.reset_loss()
+            confusion_matrix.reset_conf_matrix()
+            miou, loss = one_epoch(val_loader, model, criterion_val, epoch, args, confusion_matrix, tensorboard_meter, optimizer=None)
 
         # remember best accuracy and save checkpoint
         is_best = miou > best_miou
@@ -131,22 +139,22 @@ def main():
         }, is_best, filename=f'{args.experiment}/checkpoint_{str(epoch).zfill(5)}.pth.tar')
 
 
-def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: TensorboardMeter, optimizer=None):
+def one_epoch(dataloader, model, criterion, epoch, args, confusion_matrix, tensorboard_meter: TensorboardMeter = None, optimizer=None):
     """One epoch pass. If the optimizer is not None, the function works in training mode. 
     """
-    # TODO: define AverageMeters (print some metrics at the end of the epoch)
+    # define AverageMeters (print some metrics at the end of the epoch)
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
-    accuracies = AverageMeter('Accuracy', ':6.2f')
+    mious = AverageMeter('mIoU', ':6.2f', avg_as_val=True)
 
     is_training = optimizer is not None
     prefix = 'TRAIN' if is_training else 'TEST'
 
-    # TODO: final Progress Meter (add the relevant AverageMeters)
+    # final Progress Meter (add the relevant AverageMeters)
     progress = ProgressMeter(
         len(dataloader),
-        [batch_time, data_time, losses, accuracies],
+        [batch_time, data_time, losses, mious],
         prefix=f"{prefix} - Epoch: [{epoch}]")
 
     # switch to train mode (if training)
@@ -156,28 +164,36 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
         model.eval()
 
     end = time.time()
-    for i, (images, target) in enumerate(dataloader):
+    for i, sample in enumerate(dataloader):
         # measure data loading time
         data_time.update(time.time() - end)
 
-        images = images.to(device)
-        target = target.to(device)
+        # load the data and send them to gpu
+        images = sample['image'].to(device)
+        depths = sample['depth'].to(device)
+        targets = sample['label'].to(device)
 
         # compute output
-        output = model(images)
-        loss = criterion(output, target)
-
-        # measure accuracy and record loss
-        # TODO: define accuracy metrics
-        accuracy = torch.Tensor(1.1)  # TODO: here
-        losses.update(loss.item(), images.size(0))
-        accuracies.update(accuracy[0], images.size(0))
+        if args.modality == 'rgb':
+            output = model(images)
+        else:
+            output = model(images, depths)
 
         if is_training:
-            # compute gradient and do SGD step
+            # compute gradient and do optimization step
+            loss = criterion(output, targets)
+            loss = sum(loss)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+        else:
+            loss = criterion.add_loss_of_batch(output, targets)
+
+        # measure accuracy and record loss
+        # define accuracy metrics
+        miou = calculate_metric(output, targets, confusion_matrix)
+        losses.update(loss.item(), images.size(0))
+        mious.update(miou)
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -190,13 +206,13 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
         if args.debug:
             break
 
-        # TODO: define AverageMeters used in tensorboard summary
+        # define AverageMeters used in tensorboard summary
         if is_training:
-            tensorboard_meter.update_train([accuracies, losses])
+            tensorboard_meter.update_train([mious, losses])
         else:
-            tensorboard_meter.update_val([accuracies, losses])
+            tensorboard_meter.update_val([mious, losses])
 
-        return accuracies.avg, losses.avg  # TODO
+    return mious.avg, losses.avg
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
@@ -238,6 +254,41 @@ def get_optimizer(args, model):
 
     print('Using {} as optimizer'.format(args.optimizer))
     return optimizer
+
+
+def calculate_metric(output, targets, confusion_matrix):
+    _, image_h, image_w = targets.shape
+
+    # resize the prediction to the size of the original ground
+    # truth segmentation before computing argmax along the
+    # channel axis
+    output = F.interpolate(output, (image_h, image_w), mode='bilinear', align_corners=False)
+    output = torch.argmax(output, dim=1)
+
+    # ignore void pixels
+    mask = targets > 0
+    targets = torch.masked_select(targets, mask)
+    output = torch.masked_select(output, mask.to(device))
+
+    # In the label 0 is void, but in the prediction 0 is wall.
+    # In order for the label and prediction indices to match we
+    # need to subtract 1 of the label.
+    targets -= 1
+
+    # copy the prediction to cpu as tensorflow's confusion
+    # matrix is faster on cpu
+    output = output.cpu()
+
+    targets = targets.numpy()
+    output = output.numpy()
+
+    # finally compute the confusion matrix
+    confusion_matrix.update_conf_matrix(targets, output)
+
+    # compute the miou
+    miou, _ = confusion_matrix.compute_miou()
+
+    return miou
 
 
 if __name__ == '__main__':
