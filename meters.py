@@ -6,9 +6,10 @@ from torch.utils.tensorboard import SummaryWriter
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
-    def __init__(self, name, fmt=':f'):
+    def __init__(self, name, fmt=':f', avg_as_val=False):
         self.name = name
         self.fmt = fmt
+        self.avg_as_val = avg_as_val  # dirty trick to make my script work (I'm so tired help)
         self.reset()
 
     def reset(self):
@@ -21,7 +22,10 @@ class AverageMeter(object):
         self.val = val
         self.sum += val * n
         self.count += n
-        self.avg = self.sum / self.count
+        if self.avg_as_val:
+            self.avg = val
+        else:
+            self.avg = self.sum / self.count
 
     def __str__(self):
         fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
