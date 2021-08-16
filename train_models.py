@@ -2,6 +2,7 @@ import argparse
 import os
 import random
 import shutil
+from src import utils
 import time
 from meters import AverageMeter, ProgressMeter, TensorboardMeter
 from my_args import get_args
@@ -9,6 +10,7 @@ import warnings
 
 from src.prepare_data import prepare_data
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -51,53 +53,41 @@ def main():
         summary(model, input_size=(3, 480, 640))
         exit()
 
-    # TODO: dataloaders code
-    data_loaders = prepare_data(args, ckpt_dir)
-    traindir = os.path.join(args.data, 'train')
-    valdir = os.path.join(args.data, 'val')
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    # dataloaders code
+    data_loaders = prepare_data(args, ckpt_dir=None)
+    train_loader, val_loader = data_loaders
 
-    train_dataset = datasets.ImageFolder(
-        traindir,
-        transforms.Compose([
-            transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ]))
+    cameras = train_loader.dataset.cameras
+    n_classes_without_void = train_loader.dataset.n_classes_without_void
+    if args.class_weighting != 'None':
+        class_weighting = train_loader.dataset.compute_class_weights(weight_mode=args.class_weighting, c=args.c_for_logarithmic_weighting)
+    else:
+        class_weighting = np.ones(n_classes_without_void)
 
-    must_shuffle = False if args.debug else True
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=must_shuffle, num_workers=args.workers, pin_memory=True)
+    # loss functions (only loss_function_train is really needed.
+    # The other loss functions are just there to compare valid loss to train loss)
+    criterion_train = \
+        utils.CrossEntropyLoss2d(weight=class_weighting, device=device)
 
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])),
-        batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
-
-    # TODO: define loss function
-    criterion = nn.CrossEntropyLoss().to(device)
-
-    # TODO: define optimizer
-    optimizer = torch.optim.SGD(
-        model.parameters(),
-        args.lr,
-        momentum=args.momentum,
-        weight_decay=args.weight_decay
+    pixel_sum_valid_data = val_loader.dataset.compute_class_weights(weight_mode='linear')
+    pixel_sum_valid_data_weighted = np.sum(pixel_sum_valid_data * class_weighting)
+    criterion_val = utils.CrossEntropyLoss2dForValidData(
+        weight=class_weighting,
+        weighted_pixel_sum=pixel_sum_valid_data_weighted,
+        device=device
     )
+    criterion_val_unweighted = \
+        utils.CrossEntropyLoss2dForValidDataUnweighted(device=device)
+
+    # define optimizer
+    optimizer = get_optimizer(args, model)
 
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(args.resume)
-            args.start_epoch = checkpoint['epoch']
+            args.start_epoch = checkpoint['epoch'] if args.start_epoch is None else args.start_epoch
             best_miou = checkpoint['best_miou'].to(device)
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
@@ -110,8 +100,7 @@ def main():
 
     # If only evaluating the model is required
     if args.evaluate:
-        _, _, _ = one_epoch(val_loader, model, criterion,
-                            0, args, optimizer=None)
+        _, _, _ = one_epoch(val_loader, model, criterion_val, 0, args, optimizer=None)
         return
 
     # define tensorboard meter
@@ -122,16 +111,16 @@ def main():
         adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        acc, loss = one_epoch(train_loader, model, criterion,
-                              epoch, args, tensorboard_meter, optimizer=optimizer)  # TODO
+        miou, loss = one_epoch(train_loader, model, criterion_train,
+                               epoch, args, tensorboard_meter, optimizer=optimizer)
 
         # evaluate on validation set (optimizer is None when validation)
-        acc, loss = one_epoch(val_loader, model, criterion,
-                              epoch, args, tensorboard_meter, optimizer=None)
+        miou, loss = one_epoch(val_loader, model, criterion_val,
+                               epoch, args, tensorboard_meter, optimizer=None)
 
         # remember best accuracy and save checkpoint
-        is_best = acc > best_miou
-        best_miou = max(acc, best_miou)
+        is_best = miou > best_miou
+        best_miou = max(miou, best_miou)
 
         save_checkpoint({
             'epoch': epoch + 1,
@@ -221,6 +210,34 @@ def adjust_learning_rate(optimizer, epoch, args):
     lr = args.lr * (0.1 ** (epoch // 30))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+
+
+def get_optimizer(args, model):
+    # set different learning rates fo different parts of the model
+    # when using default parameters the whole model is trained with the same
+    # learning rate
+    if args.optimizer == 'SGD':
+        optimizer = torch.optim.SGD(
+            model.parameters(),
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            momentum=args.momentum,
+            nesterov=True
+        )
+    elif args.optimizer == 'Adam':
+        optimizer = torch.optim.Adam(
+            model.parameters(),
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            betas=(0.9, 0.999)
+        )
+    else:
+        raise NotImplementedError(
+            'Currently only SGD and Adam as optimizers are '
+            'supported. Got {}'.format(args.optimizer))
+
+    print('Using {} as optimizer'.format(args.optimizer))
+    return optimizer
 
 
 if __name__ == '__main__':
