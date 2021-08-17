@@ -82,6 +82,8 @@ def main():
             weighting_in_encoder='None',
             upsampling='bilinear'
         )
+    model.to(device)
+    
     # define input_size here to have the right summary of your model
     if args.summary:
         summary(model, input_size=(3, 480, 640))
