@@ -10,7 +10,7 @@ import numpy as np
 import numbers
 import torch
 import tensorflow as tf
-
+tf.compat.v1.disable_eager_execution()
 
 class ConfusionMatrixTensorflow:
     def __init__(self, n_classes):
