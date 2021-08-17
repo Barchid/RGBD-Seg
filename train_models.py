@@ -34,6 +34,7 @@ def main():
     args = get_args()
     args.valid_full_res = False
     args.batch_size_valid = args.batch_size
+    args.c_for_logarithmic_weighting = 1.02
 
     if args.seed is not None:
         random.seed(args.seed)
