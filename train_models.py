@@ -172,7 +172,7 @@ def one_epoch(dataloader, model, criterion, epoch, args, confusion_matrix, tenso
     # define AverageMeters (print some metrics at the end of the epoch)
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
-    losses = AverageMeter('Loss', ':.4e')
+    losses = AverageMeter('Loss', ':6.4f')
     mious = AverageMeter('mIoU', ':6.2f', avg_as_val=True)
 
     is_training = optimizer is not None
