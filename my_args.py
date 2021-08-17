@@ -76,3 +76,5 @@ def get_args():
                         help='which weighting mode to use for weighting the '
                         'classes of the unbalanced dataset'
                         'for the loss function during training.')
+
+    return parser.parse_args()
