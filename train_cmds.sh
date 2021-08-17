@@ -1,0 +1,1 @@
+python train_models.py --experiment="testing" --dataset=nyuv2 --modality=rgb 

@@ -32,6 +32,7 @@ best_miou = 0.
 
 def main():
     args = get_args()
+    args.valid_full_res = False
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -44,12 +45,15 @@ def main():
                       'from checkpoints.')
 
     # create the experiment dir if it does not exist
-    if not os.path.exists(os.path.join('experiments', args.experiments)):
-        os.mkdir(os.path.join('experiments', args.experiments))
+    if not os.path.exists(os.path.join('experiments', args.experiment)):
+        os.mkdir(os.path.join('experiments', args.experiment))
 
     # dataloaders code
     data_loaders = prepare_data(args, ckpt_dir=None)
     train_loader, val_loader = data_loaders
+    
+    # if in debugging mode, the model is trained on the first batch of the validation set (because there is no shuffle)
+    train_loader = val_loader if args.debug else train_loader
 
     cameras = train_loader.dataset.cameras
     n_classes_without_void = train_loader.dataset.n_classes_without_void
@@ -134,6 +138,10 @@ def main():
         # train for one epoch
         confusion_matrix.reset_conf_matrix()
         miou, loss = one_epoch(train_loader, model, criterion_train, epoch, args, confusion_matrix, tensorboard_meter, optimizer=optimizer)
+
+        # jump to next epoch if debugging mode
+        if args.debug:
+            continue
 
         # evaluate on validation set (optimizer is None when validation)
         with torch.no_grad():
