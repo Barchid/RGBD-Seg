@@ -304,7 +304,7 @@ class Decoder(nn.Module):
         out = self.upsample2(out)
 
         if self.training:
-            return out, out_down_8, out_down_16, out_down_32
+            return out, #out_down_8, out_down_16, out_down_32
         return out
 
 
