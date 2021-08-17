@@ -33,6 +33,7 @@ best_miou = 0.
 def main():
     args = get_args()
     args.valid_full_res = False
+    args.batch_size_valid = args.batch_size
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -51,7 +52,7 @@ def main():
     # dataloaders code
     data_loaders = prepare_data(args, ckpt_dir=None)
     train_loader, val_loader = data_loaders
-    
+
     # if in debugging mode, the model is trained on the first batch of the validation set (because there is no shuffle)
     train_loader = val_loader if args.debug else train_loader
 
