@@ -68,7 +68,7 @@ def main():
     model = ESANetOneModality(
             height=args.height,
             width=args.width,
-            pretrained_on_imagenet=True,
+            pretrained_on_imagenet=False,
             encoder='resnet18',
             encoder_block='NonBottleneck1D',
             activation='relu',
