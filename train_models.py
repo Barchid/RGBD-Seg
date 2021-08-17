@@ -208,7 +208,7 @@ def one_epoch(dataloader, model, criterion, epoch, args, confusion_matrix, tenso
 
         if is_training:
             # compute gradient and do optimization step
-            loss = criterion(output, targets)
+            loss = criterion([output], [targets])
             loss = sum(loss)
             optimizer.zero_grad()
             loss.backward()
@@ -306,7 +306,7 @@ def calculate_metric(output, targets, confusion_matrix):
     # matrix is faster on cpu
     output = output.cpu()
 
-    targets = targets.numpy()
+    targets = targets.cpu().numpy()
     output = output.numpy()
 
     # finally compute the confusion matrix
