@@ -20,7 +20,7 @@ import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torchsummary import summary
-
+from torchvision.models import segmentation
 
 # GPU if available (or CPU instead)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -61,10 +61,10 @@ def main():
     if args.class_weighting != 'None':
         class_weighting = train_loader.dataset.compute_class_weights(weight_mode=args.class_weighting, c=args.c_for_logarithmic_weighting)
     else:
-        class_weighting = np.ones(n_classes_without_void)
+        class_weighting = np.ones(train_loader.dataset.n_classes_without_void)
 
     # TODO: define model
-    model = None
+    model = segmentation.fcn_resnet50(pretrained=False, num_classes=train_loader.dataset.n_classes)
     model.to(device)
 
     # define input_size here to have the right summary of your model
@@ -74,9 +74,7 @@ def main():
 
     # loss functions (only loss_function_train is really needed.
     # The other loss functions are just there to compare valid loss to train loss)
-    criterion = nn.CrossEntropyLoss(ignore_index=-1).to(device)
-
-    pixel_sum_valid_data = val_loader.dataset.compute_class_weights(weight_mode='linear')
+    criterion = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
 
     # define optimizer
     optimizer = get_optimizer(args, model)
@@ -160,7 +158,7 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
         model.eval()
 
     # create metrics object to compute the miou
-    metric_eval = M_IOU(dataloader.dataset.n_classes_without_void)
+    metric_eval = M_IOU(dataloader.dataset.n_classes, ignore_index=args.ignore_index)
 
     end = time.time()
     for i, sample in enumerate(dataloader):
@@ -179,6 +177,7 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
             output = model(images, depths)
 
         # compute gradient and do optimization step
+        output = output['out']  # TODO: remove when changing model
         loss = criterion(output, targets)
         if is_training:
             optimizer.zero_grad()
@@ -251,41 +250,6 @@ def get_optimizer(args, model):
 
     print('Using {} as optimizer'.format(args.optimizer))
     return optimizer
-
-
-def calculate_metric(output, targets, confusion_matrix):
-    _, image_h, image_w = targets.shape
-
-    # resize the prediction to the size of the original ground
-    # truth segmentation before computing argmax along the
-    # channel axis
-    output = F.interpolate(output, (image_h, image_w), mode='bilinear', align_corners=False)
-    output = torch.argmax(output, dim=1)
-
-    # ignore void pixels
-    mask = targets > 0
-    targets = torch.masked_select(targets, mask)
-    output = torch.masked_select(output, mask.to(device))
-
-    # In the label 0 is void, but in the prediction 0 is wall.
-    # In order for the label and prediction indices to match we
-    # need to subtract 1 of the label.
-    targets -= 1
-
-    # copy the prediction to cpu as tensorflow's confusion
-    # matrix is faster on cpu
-    output = output.cpu()
-
-    targets = targets.cpu().numpy()
-    output = output.numpy()
-
-    # finally compute the confusion matrix
-    confusion_matrix.update_conf_matrix(targets, output)
-
-    # compute the miou
-    miou, _ = confusion_matrix.compute_miou()
-
-    return miou
 
 
 if __name__ == '__main__':
