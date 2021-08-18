@@ -73,17 +73,9 @@ def main():
 
     # loss functions (only loss_function_train is really needed.
     # The other loss functions are just there to compare valid loss to train loss)
-    # criterion_train = \
-        # utils.CrossEntropyLoss2d(weight=class_weighting, device=device)
     criterion = nn.CrossEntropyLoss(ignore_index=-1).to(device)
 
     pixel_sum_valid_data = val_loader.dataset.compute_class_weights(weight_mode='linear')
-    pixel_sum_valid_data_weighted = np.sum(pixel_sum_valid_data * class_weighting)
-    # criterion_val = utils.CrossEntropyLoss2dForValidData(
-    #     weight=class_weighting,
-    #     weighted_pixel_sum=pixel_sum_valid_data_weighted,
-    #     device=device
-    # )
 
     # define optimizer
     optimizer = get_optimizer(args, model)
