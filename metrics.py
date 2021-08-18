@@ -22,6 +22,6 @@ class M_IOU(object):
         self.hist += torch.bincount(targets[keep] * self.n_classes + preds[keep], minlength=self.n_classes ** 2).view(self.n_classes, self.n_classes).float()
 
     def compute(self):
-        ious = self.hist.diag() / (self.hist.sum(dim=0) + self.hist.sum(dim=1) - self.hist.diag())
+        ious = self.hist.diag() / (1e-9 + self.hist.sum(dim=0) + self.hist.sum(dim=1) - self.hist.diag())
         miou = ious.mean()
         return miou.item()
