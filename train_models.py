@@ -169,6 +169,7 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
         images = sample['image'].to(device)
         depths = sample['depth'].to(device)
         targets = sample['label'].to(device)
+        targets = targets.long()
 
         # compute output
         if args.modality == 'rgb':
@@ -178,7 +179,7 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
 
         # compute gradient and do optimization step
         output = output['out']  # TODO: remove when changing model
-        loss = criterion(output, targets.long())
+        loss = criterion(output, targets)
         if is_training:
             optimizer.zero_grad()
             loss.backward()
