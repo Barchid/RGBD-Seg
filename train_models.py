@@ -178,7 +178,7 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
 
         # compute gradient and do optimization step
         output = output['out']  # TODO: remove when changing model
-        loss = criterion(output, targets)
+        loss = criterion(output, targets.long())
         if is_training:
             optimizer.zero_grad()
             loss.backward()
