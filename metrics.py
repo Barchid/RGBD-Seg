@@ -6,9 +6,10 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class M_IOU(object):
-    def __init__(self, n_classes, scale=0.5, ignore_label=255):
+    def __init__(self, n_classes, ignore_label=255):
         self.n_classes = n_classes
         self.hist = torch.zeros(n_classes, n_classes).to(device).detach()
+        self.ignore_label = ignore_label
 
     def update(self, logits: torch.Tensor, targets: torch.Tensor):
         probs = torch.softmax(logits, dim=1)
