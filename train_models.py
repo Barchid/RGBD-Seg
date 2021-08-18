@@ -107,7 +107,7 @@ def main():
 
     # TRAINING + VALIDATION LOOP
     for epoch in range(args.start_epoch, args.epochs):
-        adjust_learning_rate(optimizer, epoch, args)
+        # adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
         miou, loss = one_epoch(train_loader, model, criterion, epoch, args, tensorboard_meter, optimizer=optimizer)
