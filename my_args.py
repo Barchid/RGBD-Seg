@@ -76,5 +76,6 @@ def get_args():
                         help='which weighting mode to use for weighting the '
                         'classes of the unbalanced dataset'
                         'for the loss function during training.')
+    parser.add_argument('--ignore-index', default=0, type=int, help='index to ignore during the evaluation (mIoU) of the experiment')
 
     return parser.parse_args()
