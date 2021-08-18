@@ -1,13 +1,12 @@
 import os
 import random
 import shutil
-from src import utils
 import time
 from meters import AverageMeter, ProgressMeter, TensorboardMeter
 from my_args import get_args
 import warnings
 
-from src.prepare_data import prepare_data
+from prepare_data import prepare_data
 
 import numpy as np
 import torch
