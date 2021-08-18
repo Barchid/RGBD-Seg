@@ -1,3 +1,4 @@
+from metrics import M_IOU
 import os
 import random
 import shutil
@@ -158,6 +159,9 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
     else:
         model.eval()
 
+    # create metrics object to compute the miou
+    metric_eval = M_IOU(dataloader.dataset.n_classes_without_void)
+
     end = time.time()
     for i, sample in enumerate(dataloader):
         # measure data loading time
@@ -174,19 +178,17 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
         else:
             output = model(images, depths)
 
+        # compute gradient and do optimization step
+        loss = criterion(output, targets)
         if is_training:
-            # compute gradient and do optimization step
-            loss = criterion([output], [targets])
-            loss = sum(loss)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        else:
-            loss = criterion.add_loss_of_batch(output, targets)
 
         # measure accuracy and record loss
-        # define accuracy metrics
-        miou = None
+        metric_eval.update(output, targets)
+        miou = metric_eval.compute()
+
         losses.update(loss.item(), images.size(0))
         mious.update(miou)
 
