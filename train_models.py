@@ -1,8 +1,6 @@
 import os
 import random
 import shutil
-from src.models.model_one_modality import ESANetOneModality
-from src.confusion_matrix import ConfusionMatrixTensorflow
 from src import utils
 import time
 from meters import AverageMeter, ProgressMeter, TensorboardMeter
@@ -22,6 +20,7 @@ import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torchsummary import summary
+
 
 # GPU if available (or CPU instead)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -65,25 +64,9 @@ def main():
         class_weighting = np.ones(n_classes_without_void)
 
     # TODO: define model
-    model = ESANetOneModality(
-            height=args.height,
-            width=args.width,
-            pretrained_on_imagenet=False,
-            encoder='resnet18',
-            encoder_block='NonBottleneck1D',
-            activation='relu',
-            input_channels=3,
-            encoder_decoder_fusion='add',
-            context_module='ppm',
-            num_classes=n_classes_without_void,
-            pretrained_dir=None,
-            nr_decoder_blocks=None,
-            channels_decoder=None,
-            weighting_in_encoder='None',
-            upsampling='bilinear'
-        )
+    model = None
     model.to(device)
-    
+
     # define input_size here to have the right summary of your model
     if args.summary:
         summary(model, input_size=(3, 480, 640))
@@ -91,16 +74,17 @@ def main():
 
     # loss functions (only loss_function_train is really needed.
     # The other loss functions are just there to compare valid loss to train loss)
-    criterion_train = \
-        utils.CrossEntropyLoss2d(weight=class_weighting, device=device)
+    # criterion_train = \
+        # utils.CrossEntropyLoss2d(weight=class_weighting, device=device)
+    criterion = nn.CrossEntropyLoss(ignore_index=-1).to(device)
 
     pixel_sum_valid_data = val_loader.dataset.compute_class_weights(weight_mode='linear')
     pixel_sum_valid_data_weighted = np.sum(pixel_sum_valid_data * class_weighting)
-    criterion_val = utils.CrossEntropyLoss2dForValidData(
-        weight=class_weighting,
-        weighted_pixel_sum=pixel_sum_valid_data_weighted,
-        device=device
-    )
+    # criterion_val = utils.CrossEntropyLoss2dForValidData(
+    #     weight=class_weighting,
+    #     weighted_pixel_sum=pixel_sum_valid_data_weighted,
+    #     device=device
+    # )
 
     # define optimizer
     optimizer = get_optimizer(args, model)
@@ -121,15 +105,11 @@ def main():
 
     cudnn.benchmark = True
 
-    # Confusion matrixes to compute the mIoU metrics (train and val)
-    confusion_matrix = ConfusionMatrixTensorflow(n_classes_without_void)
-
     # If only evaluating the model is required
     if args.evaluate:
         with torch.no_grad():
-            criterion_val.reset_loss()
-            confusion_matrix.reset_conf_matrix()
-            _, _, _ = one_epoch(val_loader, model, criterion_val, 0, args, confusion_matrix, optimizer=None)
+            # criterion_val.reset_loss()
+            _, _, _ = one_epoch(val_loader, model, criterion, 0, args, optimizer=None)
         return
 
     # define tensorboard meter
@@ -140,8 +120,7 @@ def main():
         adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        confusion_matrix.reset_conf_matrix()
-        miou, loss = one_epoch(train_loader, model, criterion_train, epoch, args, confusion_matrix, tensorboard_meter, optimizer=optimizer)
+        miou, loss = one_epoch(train_loader, model, criterion, epoch, args, tensorboard_meter, optimizer=optimizer)
 
         # jump to next epoch if debugging mode
         if args.debug:
@@ -149,9 +128,7 @@ def main():
 
         # evaluate on validation set (optimizer is None when validation)
         with torch.no_grad():
-            criterion_val.reset_loss()
-            confusion_matrix.reset_conf_matrix()
-            miou, loss = one_epoch(val_loader, model, criterion_val, epoch, args, confusion_matrix, tensorboard_meter, optimizer=None)
+            miou, loss = one_epoch(val_loader, model, criterion, epoch, args, tensorboard_meter, optimizer=None)
 
         # remember best accuracy and save checkpoint
         is_best = miou > best_miou
@@ -166,7 +143,7 @@ def main():
         }, is_best, filename=f'{args.experiment}/checkpoint_{str(epoch).zfill(5)}.pth.tar')
 
 
-def one_epoch(dataloader, model, criterion, epoch, args, confusion_matrix, tensorboard_meter: TensorboardMeter = None, optimizer=None):
+def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: TensorboardMeter = None, optimizer=None):
     """One epoch pass. If the optimizer is not None, the function works in training mode. 
     """
     # define AverageMeters (print some metrics at the end of the epoch)
@@ -218,7 +195,7 @@ def one_epoch(dataloader, model, criterion, epoch, args, confusion_matrix, tenso
 
         # measure accuracy and record loss
         # define accuracy metrics
-        miou = calculate_metric(output, targets, confusion_matrix)
+        miou = None
         losses.update(loss.item(), images.size(0))
         mious.update(miou)
 
