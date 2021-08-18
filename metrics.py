@@ -12,6 +12,7 @@ class M_IOU(object):
         self.ignore_label = ignore_label
 
     def update(self, logits: torch.Tensor, targets: torch.Tensor):
+        logits = logits.clone().detach()
         probs = torch.softmax(logits, dim=1)
         preds = torch.argmax(probs, dim=1)
         keep = targets != self.ignore_label
