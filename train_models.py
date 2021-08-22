@@ -152,7 +152,7 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
     # final Progress Meter (add the relevant AverageMeters)
     progress = ProgressMeter(
         len(dataloader),
-        [batch_time, data_time, losses, mious],
+        [batch_time, data_time, losses, accuracies, mious],
         prefix=f"{prefix} - Epoch: [{epoch}]")
 
     # switch to train mode (if training)
