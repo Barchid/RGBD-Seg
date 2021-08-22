@@ -1,4 +1,4 @@
-from metrics import M_IOU
+from metrics import M_IOU, ConfusionMatrix
 import os
 import random
 import shutil
@@ -79,6 +79,9 @@ def main():
     # define optimizer
     optimizer = get_optimizer(args, model)
 
+    # instantiate the confusion matrix used to compute the accuracy and mIoU metrics
+    confmat = ConfusionMatrix(num_classes=train_loader.dataset.n_classes, average=None)
+
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
@@ -99,7 +102,7 @@ def main():
     if args.evaluate:
         with torch.no_grad():
             # criterion_val.reset_loss()
-            _, _, _ = one_epoch(val_loader, model, criterion, 0, args, optimizer=None)
+            _, _, _ = one_epoch(val_loader, model, criterion, 0, confmat, args, optimizer=None)
         return
 
     # define tensorboard meter
@@ -110,7 +113,7 @@ def main():
         # adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        miou, loss = one_epoch(train_loader, model, criterion, epoch, args, tensorboard_meter, optimizer=optimizer)
+        miou, loss = one_epoch(train_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=optimizer)
 
         # jump to next epoch if debugging mode
         if args.debug:
@@ -118,7 +121,7 @@ def main():
 
         # evaluate on validation set (optimizer is None when validation)
         with torch.no_grad():
-            miou, loss = one_epoch(val_loader, model, criterion, epoch, args, tensorboard_meter, optimizer=None)
+            miou, loss = one_epoch(val_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=None)
 
         # remember best accuracy and save checkpoint
         is_best = miou > best_miou
@@ -133,13 +136,14 @@ def main():
         }, is_best, filename=f'{args.experiment}/checkpoint_{str(epoch).zfill(5)}.pth.tar')
 
 
-def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: TensorboardMeter = None, optimizer=None):
+def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, args, tensorboard_meter: TensorboardMeter = None, optimizer=None):
     """One epoch pass. If the optimizer is not None, the function works in training mode. 
     """
     # define AverageMeters (print some metrics at the end of the epoch)
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':6.4f')
+    accuracies = AverageMeter('Accuracies', ':6.2f', avg_as_val=True)
     mious = AverageMeter('mIoU', ':6.2f', avg_as_val=True)
 
     is_training = optimizer is not None
@@ -157,8 +161,8 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
     else:
         model.eval()
 
-    # create metrics object to compute the miou
-    metric_eval = M_IOU(dataloader.dataset.n_classes, ignore_index=args.ignore_index)
+    # create confusion matrix to compute the miou and accuracy
+    confmat.reset()  # reset the confusion matrix before using it
 
     end = time.time()
     for i, sample in enumerate(dataloader):
@@ -186,11 +190,11 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
             optimizer.step()
 
         # measure accuracy and record loss
-        metric_eval.update(output, targets)
-        miou = metric_eval.compute()
+        confmat.update((output, targets))
 
         losses.update(loss.item(), images.size(0))
-        mious.update(miou)
+        mious.update(confmat.miou(ignore_index=args.ignore_index))
+        accuracies.update(confmat.accuracy())
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -205,9 +209,9 @@ def one_epoch(dataloader, model, criterion, epoch, args, tensorboard_meter: Tens
 
         # define AverageMeters used in tensorboard summary
         if is_training:
-            tensorboard_meter.update_train([mious, losses])
+            tensorboard_meter.update_train([mious, accuracies, losses])
         else:
-            tensorboard_meter.update_val([mious, losses])
+            tensorboard_meter.update_val([mious, accuracies, losses])
 
     return mious.avg, losses.avg
 
