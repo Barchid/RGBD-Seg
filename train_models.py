@@ -183,7 +183,6 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
 
         # compute gradient and do optimization step
         output = output['out']  # TODO: remove when changing model
-        output = torch.softmax(output, dim=1) # TODO : see if we remove this shit
         loss = criterion(output, targets)
         if is_training:
             optimizer.zero_grad()
