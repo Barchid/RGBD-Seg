@@ -131,7 +131,6 @@ def main():
 
         save_checkpoint({
             'epoch': epoch + 1,
-            'arch': args.arch,
             'state_dict': model.state_dict(),
             'best_miou': best_miou,
             'optimizer': optimizer.state_dict(),
