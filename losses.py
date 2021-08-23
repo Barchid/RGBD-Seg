@@ -4,11 +4,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
 
 class OhemCELoss(nn.Module):
     def __init__(self, thresh, n_min, ignore_index=255, weight=None, *args, **kwargs):
         super(OhemCELoss, self).__init__()
-        self.thresh = -torch.log(torch.tensor(thresh, dtype=torch.float)).cuda()
+        self.thresh = -torch.log(torch.tensor(thresh, dtype=torch.float)).to(device)
         self.n_min = n_min
         self.ignore_index = ignore_index
         self.criteria = nn.CrossEntropyLoss(ignore_index=ignore_index, reduction='none', weight=weight)
