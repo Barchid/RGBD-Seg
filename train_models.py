@@ -76,6 +76,8 @@ def main():
     # loss functions (only loss_function_train is really needed.
     # The other loss functions are just there to compare valid loss to train loss)
     criterion = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
+    criterion_f16 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
+    criterion_f32 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
 
     # define optimizer
     optimizer = get_optimizer(args, model)
@@ -103,7 +105,7 @@ def main():
     if args.evaluate:
         with torch.no_grad():
             # criterion_val.reset_loss()
-            _, _, _ = one_epoch(val_loader, model, criterion, 0, confmat, args, optimizer=None)
+            _, _, _ = one_epoch(val_loader, model, criterion, 0, confmat, args, optimizer=None, criterion_f16=criterion_f16, criterion_f32=criterion_f32)
         return
 
     # define tensorboard meter
@@ -111,10 +113,9 @@ def main():
 
     # TRAINING + VALIDATION LOOP
     for epoch in range(args.start_epoch, args.epochs):
-        # adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        miou, loss = one_epoch(train_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=optimizer)
+        miou, loss = one_epoch(train_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=optimizer, criterion_f16=criterion_f16, criterion_f32=criterion_f32)
 
         # jump to next epoch if debugging mode
         if args.debug:
@@ -122,7 +123,7 @@ def main():
 
         # evaluate on validation set (optimizer is None when validation)
         with torch.no_grad():
-            miou, loss = one_epoch(val_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=None)
+            miou, loss = one_epoch(val_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=None, criterion_f16=criterion_f16, criterion_f32=criterion_f32)
 
         # remember best accuracy and save checkpoint
         is_best = miou > best_miou
@@ -137,7 +138,7 @@ def main():
         }, is_best, filename=f'{args.experiment}/checkpoint_{str(epoch).zfill(5)}.pth.tar')
 
 
-def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, args, tensorboard_meter: TensorboardMeter = None, optimizer=None):
+def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, args, tensorboard_meter: TensorboardMeter = None, optimizer=None, criterion_f16=None, criterion_f32=None):
     """One epoch pass. If the optimizer is not None, the function works in training mode. 
     """
     # define AverageMeters (print some metrics at the end of the epoch)
@@ -184,8 +185,8 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
 
         # compute gradient and do optimization step
         loss_out = criterion(output, targets)
-        loss_f16 = criterion(output, targets)
-        loss_f32 = criterion(output, targets)
+        loss_f16 = criterion_f16(feat_16, targets)
+        loss_f32 = criterion_f32(feat_32, targets)
 
         loss = loss_out + loss_f16 + loss_f32
 
@@ -225,13 +226,6 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
     if is_best:
         shutil.copyfile(filename, 'model_best.pth.tar')
-
-
-def adjust_learning_rate(optimizer, epoch, args):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // 30))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 
 def get_optimizer(args, model):
