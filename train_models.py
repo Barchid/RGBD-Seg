@@ -179,7 +179,7 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
 
         # compute output
         if args.modality == 'rgb':
-            output, feat_16, feat_32 = model(images)
+            output = model(images)
         else:
             output = model(images, depths)
 
