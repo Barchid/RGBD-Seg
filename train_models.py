@@ -184,6 +184,7 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
             output = model(images, depths)
 
         # compute gradient and do optimization step
+        output = output['out']
         loss_out = criterion(output, targets)
         # loss_f16 = criterion_f16(feat_16, targets)
         # loss_f32 = criterion_f32(feat_32, targets)
