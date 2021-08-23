@@ -26,11 +26,11 @@ from torchvision.models import segmentation
 # GPU if available (or CPU instead)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-# TODO: best accuracy metrics (used to save the best checkpoints)
-best_miou = 0.
-
 
 def main():
+    # TODO: best accuracy metrics (used to save the best checkpoints)
+    best_miou = 0.
+
     args = get_args()
     args.valid_full_res = False
     args.batch_size_valid = args.batch_size
