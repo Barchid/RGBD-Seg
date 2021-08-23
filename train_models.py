@@ -134,7 +134,7 @@ def main():
             'state_dict': model.state_dict(),
             'best_miou': best_miou,
             'optimizer': optimizer.state_dict(),
-        }, is_best, filename=f'{args.experiment}/checkpoint_{str(epoch).zfill(5)}.pth.tar')
+        }, is_best, filename=f'experiments/{args.experiment}/checkpoint_{str(epoch).zfill(5)}.pth.tar')
 
 
 def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, args, tensorboard_meter: TensorboardMeter = None, optimizer=None, criterion_f16=None, criterion_f32=None):
