@@ -217,7 +217,7 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
         if is_training:
             tensorboard_meter.update_train([mious, accuracies, losses])
         else:
-            tensorboard_meter.update_val([mious, accuracies, losses])
+            tensorboard_meter.update_val([mious, accuracies, losses], epoch=epoch)
 
     return mious.avg, losses.avg
 
