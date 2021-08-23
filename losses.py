@@ -6,36 +6,15 @@ import torch.optim as optim
 
 
 class OhemCELoss(nn.Module):
-    def __init__(self, thresh, n_min, ignore_index=255, *args, **kwargs):
+    def __init__(self, thresh, n_min, ignore_index=255, weight=None, *args, **kwargs):
         super(OhemCELoss, self).__init__()
         self.thresh = -torch.log(torch.tensor(thresh, dtype=torch.float)).cuda()
         self.n_min = n_min
         self.ignore_index = ignore_index
-        self.criteria = nn.CrossEntropyLoss(ignore_index=ignore_index, reduction='none')
+        self.criteria = nn.CrossEntropyLoss(ignore_index=ignore_index, reduction='none', weight=weight)
 
     def forward(self, logits, labels):
         loss = self.criteria(logits, labels).view(-1)
-        loss, _ = torch.sort(loss, descending=True)
-        if loss[self.n_min] > self.thresh:
-            loss = loss[loss > self.thresh]
-        else:
-            loss = loss[:self.n_min]
-        return torch.mean(loss)
-
-
-class WeightedOhemCELoss(nn.Module):
-    def __init__(self, thresh, n_min, num_classes, ignore_lb=255, *args, **kwargs):
-        super(WeightedOhemCELoss, self).__init__()
-        self.thresh = -torch.log(torch.tensor(thresh, dtype=torch.float)).cuda()
-        self.n_min = n_min
-        self.ignore_lb = ignore_lb
-        self.num_classes = num_classes
-        # self.criteria = nn.CrossEntropyLoss(ignore_index=ignore_lb, reduction='none')
-
-    def forward(self, logits, labels):
-        N, C, H, W = logits.size()
-        criteria = nn.CrossEntropyLoss(weight=enet_weighing(labels, self.num_classes).cuda(), ignore_index=self.ignore_lb, reduction='none')
-        loss = criteria(logits, labels).view(-1)
         loss, _ = torch.sort(loss, descending=True)
         if loss[self.n_min] > self.thresh:
             loss = loss[loss > self.thresh]
