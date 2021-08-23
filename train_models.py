@@ -1,3 +1,4 @@
+from models.stdcseg import BiSeNet
 from metrics import M_IOU, ConfusionMatrix
 import os
 import random
@@ -64,7 +65,7 @@ def main():
         class_weighting = np.ones(train_loader.dataset.n_classes_without_void)
 
     # TODO: define model
-    model = segmentation.fcn_resnet50(pretrained=False, num_classes=train_loader.dataset.n_classes)
+    model = BiSeNet(backbone='STDCNet1446', n_classes=train_loader.dataset.n_classes)
     model.to(device)
 
     # define input_size here to have the right summary of your model
@@ -177,13 +178,17 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
 
         # compute output
         if args.modality == 'rgb':
-            output = model(images)
+            output, feat_16, feat_32 = model(images)
         else:
             output = model(images, depths)
 
         # compute gradient and do optimization step
-        output = output['out']  # TODO: remove when changing model
-        loss = criterion(output, targets)
+        loss_out = criterion(output, targets)
+        loss_f16 = criterion(output, targets)
+        loss_f32 = criterion(output, targets)
+
+        loss = loss_out + loss_f16 + loss_f32
+
         if is_training:
             optimizer.zero_grad()
             loss.backward()
