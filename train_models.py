@@ -65,7 +65,8 @@ def main():
         class_weighting = np.ones(train_loader.dataset.n_classes_without_void)
 
     # TODO: define model
-    model = BiSeNet(backbone='STDCNet1446', n_classes=train_loader.dataset.n_classes)
+    # model = BiSeNet(backbone='STDCNet1446', n_classes=train_loader.dataset.n_classes)
+    model = segmentation.fcn_resnet50(pretrained=False, num_classes=train_loader.dataset.n_classes)
     model.to(device)
 
     # define input_size here to have the right summary of your model
@@ -184,10 +185,10 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
 
         # compute gradient and do optimization step
         loss_out = criterion(output, targets)
-        loss_f16 = criterion_f16(feat_16, targets)
-        loss_f32 = criterion_f32(feat_32, targets)
+        # loss_f16 = criterion_f16(feat_16, targets)
+        # loss_f32 = criterion_f32(feat_32, targets)
 
-        loss = loss_out + loss_f16 + loss_f32
+        loss = loss_out # + loss_f16 + loss_f32
 
         if is_training:
             optimizer.zero_grad()
