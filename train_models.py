@@ -1,3 +1,4 @@
+from losses import OhemCELoss
 from models.stdcseg import BiSeNet
 from metrics import M_IOU, ConfusionMatrix
 import os
@@ -76,7 +77,8 @@ def main():
 
     # loss functions (only loss_function_train is really needed.
     # The other loss functions are just there to compare valid loss to train loss)
-    criterion = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
+    n_min = args.batch_size*480*640//16
+    criterion = OhemCELoss(0.7, n_min=n_min, ignore_index=args.ignore_index).to(device)
     criterion_f16 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
     criterion_f32 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
 
@@ -189,7 +191,7 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
         # loss_f16 = criterion_f16(feat_16, targets)
         # loss_f32 = criterion_f32(feat_32, targets)
 
-        loss = loss_out # + loss_f16 + loss_f32
+        loss = loss_out  # + loss_f16 + loss_f32
 
         if is_training:
             optimizer.zero_grad()
