@@ -78,7 +78,7 @@ def main():
     # loss functions (only loss_function_train is really needed.
     # The other loss functions are just there to compare valid loss to train loss)
     n_min = args.batch_size*480*640//16
-    class_weighting = torch.tensor(class_weighting).to(device)
+    class_weighting = torch.tensor(class_weighting).float()
     criterion = nn.CrossEntropyLoss(weight=class_weighting, ignore_index=args.ignore_index).to(device)
     criterion_f16 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
     criterion_f32 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
