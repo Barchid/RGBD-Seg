@@ -78,7 +78,7 @@ def main():
     # loss functions (only loss_function_train is really needed.
     # The other loss functions are just there to compare valid loss to train loss)
     n_min = args.batch_size*480*640//16
-    criterion = OhemCELoss(0.7, n_min=n_min, ignore_index=args.ignore_index).to(device)
+    criterion = nn.CrossEntropyLoss(weight=class_weighting, ignore_index=args.ignore_index).to(device)
     criterion_f16 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
     criterion_f32 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
 
