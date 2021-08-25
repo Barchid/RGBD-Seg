@@ -1,3 +1,4 @@
+from detail_loss import DetailAggregateLoss, detail_loss
 from losses import OhemCELoss
 from models.stdcseg import BiSeNet
 from metrics import M_IOU, ConfusionMatrix
@@ -66,8 +67,8 @@ def main():
         class_weighting = np.ones(train_loader.dataset.n_classes_without_void)
 
     # TODO: define model
-    # model = BiSeNet(backbone='STDCNet1446', n_classes=train_loader.dataset.n_classes)
-    model = segmentation.fcn_resnet50(pretrained=False, num_classes=train_loader.dataset.n_classes)
+    model = BiSeNet(backbone='STDCNet1446', n_classes=train_loader.dataset.n_classes, use_boundary_2=True, use_boundary_4=True, use_boundary_8=True, use_conv_last=True)
+    # model = segmentation.fcn_resnet50(pretrained=False, num_classes=train_loader.dataset.n_classes)
     model.to(device)
 
     # define input_size here to have the right summary of your model
@@ -82,6 +83,7 @@ def main():
     criterion = nn.CrossEntropyLoss(weight=class_weighting, ignore_index=args.ignore_index).to(device)
     criterion_f16 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
     criterion_f32 = nn.CrossEntropyLoss(ignore_index=args.ignore_index).to(device)
+    boundary_loss = DetailAggregateLoss()
 
     # define optimizer
     optimizer = get_optimizer(args, model)
@@ -109,7 +111,7 @@ def main():
     if args.evaluate:
         with torch.no_grad():
             # criterion_val.reset_loss()
-            _, _, _ = one_epoch(val_loader, model, criterion, 0, confmat, args, optimizer=None, criterion_f16=criterion_f16, criterion_f32=criterion_f32)
+            _, _, _ = one_epoch(val_loader, model, criterion, 0, confmat, args, optimizer=None, criterion_f16=criterion_f16, criterion_f32=criterion_f32, boundary_loss=boundary_loss)
         return
 
     # define tensorboard meter
@@ -119,7 +121,7 @@ def main():
     for epoch in range(args.start_epoch, args.epochs):
 
         # train for one epoch
-        miou, loss = one_epoch(train_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=optimizer, criterion_f16=criterion_f16, criterion_f32=criterion_f32)
+        miou, loss = one_epoch(train_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=optimizer, criterion_f16=criterion_f16, criterion_f32=criterion_f32, boundary_loss=boundary_loss)
 
         # jump to next epoch if debugging mode
         if args.debug:
@@ -127,7 +129,7 @@ def main():
 
         # evaluate on validation set (optimizer is None when validation)
         with torch.no_grad():
-            miou, loss = one_epoch(val_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=None, criterion_f16=criterion_f16, criterion_f32=criterion_f32)
+            miou, loss = one_epoch(val_loader, model, criterion, epoch, confmat, args, tensorboard_meter, optimizer=None, criterion_f16=criterion_f16, criterion_f32=criterion_f32, boundary_loss=boundary_loss)
 
         # remember best accuracy and save checkpoint
         is_best = miou > best_miou
@@ -141,7 +143,7 @@ def main():
         }, is_best, filename=f'experiments/{args.experiment}/checkpoint_{str(epoch).zfill(5)}.pth.tar')
 
 
-def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, args, tensorboard_meter: TensorboardMeter = None, optimizer=None, criterion_f16=None, criterion_f32=None):
+def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, args, tensorboard_meter: TensorboardMeter = None, optimizer=None, criterion_f16=None, criterion_f32=None, boundary_loss=None):
     """One epoch pass. If the optimizer is not None, the function works in training mode. 
     """
     # define AverageMeters (print some metrics at the end of the epoch)
@@ -182,17 +184,18 @@ def one_epoch(dataloader, model, criterion, epoch, confmat: ConfusionMatrix, arg
 
         # compute output
         if args.modality == 'rgb':
-            output = model(images)
+            output, feat_16, feat_32, detail2, detail4, detail8 = model(images)
         else:
             output = model(images, depths)
 
         # compute gradient and do optimization step
-        output = output['out']
         loss_out = criterion(output, targets)
-        # loss_f16 = criterion_f16(feat_16, targets)
-        # loss_f32 = criterion_f32(feat_32, targets)
+        loss_f16 = criterion_f16(feat_16, targets)
+        loss_f32 = criterion_f32(feat_32, targets)
 
-        loss = loss_out  # + loss_f16 + loss_f32
+        loss_bound = detail_loss(detail2, detail4, detail8, targets, boundary_loss)
+
+        loss = loss_out + loss_f16 + loss_f32 + loss_bound
 
         if is_training:
             optimizer.zero_grad()
