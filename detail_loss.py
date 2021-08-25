@@ -127,3 +127,22 @@ if __name__ == '__main__':
 
     bce_loss,  dice_loss = detailAggregateLoss(torch.unsqueeze(img_tensor, 0), img_tensor)
     print(bce_loss,  dice_loss)
+
+
+def detail_loss(detail2, detail4, detail8, lb, boundary_loss_func):
+    boundery_bce_loss = 0.
+    boundery_dice_loss = 0.
+
+    boundery_bce_loss2,  boundery_dice_loss2 = boundary_loss_func(detail2, lb)
+    boundery_bce_loss += boundery_bce_loss2
+    boundery_dice_loss += boundery_dice_loss2
+
+    boundery_bce_loss4,  boundery_dice_loss4 = boundary_loss_func(detail4, lb)
+    boundery_bce_loss += boundery_bce_loss4
+    boundery_dice_loss += boundery_dice_loss4
+
+    boundery_bce_loss8,  boundery_dice_loss8 = boundary_loss_func(detail8, lb)
+    boundery_bce_loss += boundery_bce_loss8
+    boundery_dice_loss += boundery_dice_loss8
+
+    return boundery_bce_loss + boundery_dice_loss
