@@ -258,7 +258,7 @@ def get_optimizer(args, model, max_iter, boundary_loss=None):
         )
     elif args.optimizer == 'SGD_WARM':
         optimizer = Optimizer(
-            model=model.module,
+            model=model,
             loss=boundary_loss,
             lr0=args.lr,
             momentum=args.momentum,
