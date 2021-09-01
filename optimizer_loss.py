@@ -23,10 +23,7 @@ class Optimizer(object):
         self.it = 0
         wd_params, nowd_params, lr_mul_wd_params, lr_mul_nowd_params = model.get_params()
         loss_nowd_params = loss.get_params()
-        # print(wd_params)
-        # print(nowd_params)
-        # print(loss_nowd_params)
-        # exit(0)
+
         param_list = [
                 {'params': wd_params},
                 {'params': nowd_params, 'weight_decay': 0},

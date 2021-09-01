@@ -19,8 +19,8 @@ def get_args():
                         metavar='N', help='mini-batch size (default: 8).')
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                         metavar='LR', help='initial learning rate (default: 0.1).', dest='lr')
-    parser.add_argument('--optimizer', type=str, default='SGD',
-                        choices=['SGD', 'Adam'])
+    parser.add_argument('--optimizer', type=str, default='SGD_WARM',
+                        choices=['SGD', 'Adam', 'SGD_WARM'])
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum')
     parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,
@@ -44,6 +44,13 @@ def get_args():
                         type=str, help="Name of the experiment.")
     parser.add_argument('--debug', action='store_true',
                         help="If used, forces to overfit only one batch of the train split (to debug the network).")
+
+    parser.add_argument(
+        '--warmup_steps',
+        dest='warmup_steps',
+        type=int,
+        default=1000,
+    )
 
     # dataset related
     parser.add_argument('--dataset', default='nyuv2',

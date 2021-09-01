@@ -1,3 +1,4 @@
+from optimizer_loss import Optimizer
 from detail_loss import DetailAggregateLoss, detail_loss
 from losses import OhemCELoss
 from models.stdcseg import BiSeNet
@@ -86,7 +87,8 @@ def main():
     boundary_loss = DetailAggregateLoss()
 
     # define optimizer
-    optimizer = get_optimizer(args, model)
+    max_iter = args.epochs * len(train_loader)
+    optimizer = get_optimizer(args, model, max_iter, boundary_loss)
 
     # instantiate the confusion matrix used to compute the accuracy and mIoU metrics
     confmat = ConfusionMatrix(num_classes=train_loader.dataset.n_classes, average=None)
@@ -99,7 +101,7 @@ def main():
             args.start_epoch = checkpoint['epoch'] if args.start_epoch is None else args.start_epoch
             best_miou = checkpoint['best_miou'].to(device)
             model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
+            # optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
@@ -139,7 +141,7 @@ def main():
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
             'best_miou': best_miou,
-            'optimizer': optimizer.state_dict(),
+            # 'optimizer': optimizer.state_dict(),
         }, is_best, filename=f'experiments/{args.experiment}/checkpoint_{str(epoch).zfill(5)}.pth.tar')
 
 
@@ -235,7 +237,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
         shutil.copyfile(filename, 'model_best.pth.tar')
 
 
-def get_optimizer(args, model):
+def get_optimizer(args, model, max_iter, boundary_loss=None):
     # set different learning rates fo different parts of the model
     # when using default parameters the whole model is trained with the same
     # learning rate
@@ -254,6 +256,17 @@ def get_optimizer(args, model):
             weight_decay=args.weight_decay,
             betas=(0.9, 0.999)
         )
+    elif args.optimizer == 'SGD_WARM':
+        optimizer = Optimizer(
+            model=model.module,
+            loss=boundary_loss,
+            lr0=args.lr,
+            momentum=args.momentum,
+            wd=args.weight_decay,
+            warmup_steps=args.warmup_steps,
+            warmup_start_lr=1e-5,
+            max_iter=max_iter,
+            power=0.9)
     else:
         raise NotImplementedError(
             'Currently only SGD and Adam as optimizers are '
