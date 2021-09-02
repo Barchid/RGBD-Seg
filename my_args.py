@@ -45,12 +45,7 @@ def get_args():
     parser.add_argument('--debug', action='store_true',
                         help="If used, forces to overfit only one batch of the train split (to debug the network).")
 
-    parser.add_argument(
-        '--warmup_steps',
-        dest='warmup_steps',
-        type=int,
-        default=1000,
-    )
+    parser.add_argument('--warmup_steps', dest='warmup_steps', type=int, default=1000)
 
     # dataset related
     parser.add_argument('--dataset', default='nyuv2',
