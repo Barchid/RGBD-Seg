@@ -323,7 +323,9 @@ class ResNet(nn.Module):
         x_layer4 = self.forward_resblock(x_layer3, self.layer4)
 
         if self.replace_stride_with_dilation == [False, False, False]:
-            features = [x_layer4, x_layer3, x_layer2, x_layer1]
+            # features = [x_layer4, x_layer3, x_layer2, x_layer1]
+            # CHANGED THIS LINE FROM THE ORIGINAL IMPLEMENTATION
+            features = [x_down2, x_layer1, x_layer2, x_layer3, x_layer4]
 
             self.skip3_channels = x_layer3.size()[1]
             self.skip2_channels = x_layer2.size()[1]
