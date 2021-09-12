@@ -1,5 +1,6 @@
 # from https://github.com/MichaelFan01/STDC-Seg/blob/59ff37fbd693b99972c76fcefe97caa14aeb619f/modules/bn.py#L112
 
+from models.resnets import ResNet34
 from models.stdcnet import STDCNet1446, STDCNet813
 import torch
 import torch.nn as nn
@@ -120,6 +121,29 @@ class ContextPath(nn.Module):
             self.conv_head32 = ConvBNReLU(128, 128, ks=3, stride=1, padding=1)
             self.conv_head16 = ConvBNReLU(128, 128, ks=3, stride=1, padding=1)
             self.conv_avg = ConvBNReLU(inplanes, 128, ks=1, stride=1, padding=0)
+
+        elif backbone == 'ResNet34': # TODO
+            self.backbone = ResNet34(pretrain_model=pretrain_model, use_conv_last=use_conv_last)
+            self.arm16 = AttentionRefinementModule(512, 128)
+            inplanes = 1024
+            if use_conv_last:
+                inplanes = 1024
+            self.arm32 = AttentionRefinementModule(inplanes, 128)
+            self.conv_head32 = ConvBNReLU(128, 128, ks=3, stride=1, padding=1)
+            self.conv_head16 = ConvBNReLU(128, 128, ks=3, stride=1, padding=1)
+            self.conv_avg = ConvBNReLU(inplanes, 128, ks=1, stride=1, padding=0)
+
+        elif backbone == 'ResNet50':
+            self.backbone = STDCNet813(pretrain_model=pretrain_model, use_conv_last=use_conv_last)
+            self.arm16 = AttentionRefinementModule(512, 128)
+            inplanes = 1024
+            if use_conv_last:
+                inplanes = 1024
+            self.arm32 = AttentionRefinementModule(inplanes, 128)
+            self.conv_head32 = ConvBNReLU(128, 128, ks=3, stride=1, padding=1)
+            self.conv_head16 = ConvBNReLU(128, 128, ks=3, stride=1, padding=1)
+            self.conv_avg = ConvBNReLU(inplanes, 128, ks=1, stride=1, padding=0)
+
         else:
             print("backbone is not in backbone lists")
             exit(0)
