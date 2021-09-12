@@ -132,3 +132,4 @@ results
 experiments/*
 !experiments/.gitkeep
 debug.py
+STDCNet1446_76.47.tar
