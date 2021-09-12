@@ -68,7 +68,7 @@ def main():
         class_weighting = np.ones(train_loader.dataset.n_classes_without_void)
 
     # TODO: define model
-    model = BiSeNet(backbone='STDCNet1446', n_classes=train_loader.dataset.n_classes, use_boundary_2=True, use_boundary_4=True, use_boundary_8=True, use_conv_last=True)
+    model = BiSeNet(backbone='STDCNet1446', pretrain_model="STDCNet1446_76.47.tar", n_classes=train_loader.dataset.n_classes, use_boundary_2=True, use_boundary_4=True, use_boundary_8=True, use_conv_last=True)
     # model = segmentation.fcn_resnet50(pretrained=False, num_classes=train_loader.dataset.n_classes)
     model.to(device)
 
